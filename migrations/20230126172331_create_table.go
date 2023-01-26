@@ -22,7 +22,7 @@ func upCreateTable(tx *sql.Tx) error {
 		return err
 	}
 
-	_, err := tx.Exec(
+	_, err = tx.Exec(
 		`CREATE TABLE IF NOT EXISTS users (
     				id bigserial CONSTRAINT users_pk PRIMARY KEY,
     				created_at TIMESTAMP,

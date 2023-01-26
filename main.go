@@ -2,13 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"hh-bot-ozon/internal"
+	"hh-bot-ozon/repository"
 	"log"
-	"net/http"
 	"os"
-	"strconv"
-	"strings"
 )
 
 import (
@@ -28,32 +26,32 @@ func main() {
 
 	bot.Debug = true
 
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	log.Println("Authorized on account %s", bot.Self.UserName)
 
 	// Устанавливаем время обновления
 	// u - структура с конфигом для получения апдейтов
-	u := tgbotapi.NewUpdate(0) // зачем
-	u.Timeout = 60             // при открытии соединения оно живет 60 секунд
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60 // при открытии соединения оно живет 60 секунд
+
+	// пул подключений к базе
+	pool, err := repository.InitRep()
+	if err != nil {
+		log.Println(err)
+	}
+	defer pool.Close()
 
 	// используя конфиг u создаем канал в который будут прилетать новые сообщения
 	updates := bot.GetUpdatesChan(u)
 
 	// в канал updates прилетают структуры типа Update
-	// вычитываем их и обрабатываем
 	for update := range updates {
 		// универсальный ответ на любое сообщение
 		reply := "I do not process any messages except commands"
 		if update.Message == nil { // ignore any non-Message updates
 			if update.CallbackQuery != nil {
-				// Respond to the callback query, telling Telegram to show the user
-				// a message with the data received.
-				// мы получили CallBack, обработали информацию, которую он нам нес,
-				// и сообщили телеграмму, что мы обработали этот CallBack
-				// в середине экрана черное окошко с текстом
 				callback := tgbotapi.NewCallback(update.CallbackQuery.ID, "this is meme dude")
 				bot.Request(callback)
 
-				// And finally, send a message containing the data received.
 				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Data)
 				bot.Send(msg)
 				continue
@@ -90,7 +88,7 @@ func main() {
 			case "start":
 				msg.Text = "This bot parses entry level vacancies from Ozon"
 			case "get_open_positions":
-				vacMap := getOpenPositions()
+				vacMap := internal.GetOpenPositions()
 				var rows []tgbotapi.InlineKeyboardButton
 				if len(*vacMap) > 0 {
 					for key, value := range *vacMap {
@@ -114,44 +112,4 @@ func main() {
 		// отправляем
 		bot.Send(msg)
 	}
-}
-
-func getOpenPositions() *map[string]string {
-	url := os.Getenv("OZON_QUERY")
-	// Request the HTML page.
-	res, err := http.Get(url)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
-	}
-
-	// Load the HTML document
-	doc, err := goquery.NewDocumentFromReader(res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var numOfVacancies int
-	doc.Find("div.search").Each(func(i int, s *goquery.Selection) {
-		str := s.Find("div.search__count").Text()
-		if str != "" {
-			numStr := strings.Fields(str)[1]
-			numOfVacancies, _ = strconv.Atoi(numStr)
-		}
-	})
-
-	vacMap := make(map[string]string, numOfVacancies)
-	if numOfVacancies > 0 {
-		doc.Find("div.finder__main").Find("div.results__items").Find("div.wr").Each(func(i int, s *goquery.Selection) {
-			str := s.Find("h6.result__title").Text()
-			strUrl, _ := s.Find("a").Attr("href")
-			if str != "" {
-				vacMap[strings.Trim(str, "\n ")] = os.Getenv("OZON_PREFIX") + strUrl
-			}
-		})
-	}
-	return &vacMap
 }

@@ -1,7 +1,7 @@
-package main
+package sample_buttons
 
 //
-//package main
+//internal main
 //
 //import (
 //tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"

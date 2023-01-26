@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"github.com/PuerkitoBio/goquery"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
+	"strings"
 )
 
 import (
@@ -65,7 +70,7 @@ func main() {
 		if !update.Message.IsCommand() {
 			msg.Text = reply
 		}
-		//test_url := "https://core.telegram.org/bots/api#replykeyboardmarkup"
+		test_url := "https://core.telegram.org/bots/api#replykeyboardmarkup"
 		test_string := "hahaha"
 
 		if update.Message.IsCommand() {
@@ -76,12 +81,29 @@ func main() {
 				k := []tgbotapi.InlineKeyboardButton{{Text: "lalala", CallbackData: &test_string}}
 				Rm := tgbotapi.NewInlineKeyboardMarkup(k)
 				msg.ReplyMarkup = Rm
-			case "check_recent_vacancies":
+			case "get_open_positions":
 				msg.Text = "I will show you recent internship positions"
+			case "link":
+				msg.Text = "I am link"
+				k := []tgbotapi.InlineKeyboardButton{{Text: "tap me", URL: &test_url}, {Text: "haha", URL: &test_url}}
+				Rm := tgbotapi.NewInlineKeyboardMarkup(k)
+				msg.ReplyMarkup = Rm
 			case "start":
 				msg.Text = "This bot parses entry level vacancies from Ozon on hh"
-			case "info":
-				msg.Text = "Some instructions for user"
+			case "test":
+				vacMap := getOpenPositions()
+				var rows []tgbotapi.InlineKeyboardButton
+				if len(*vacMap) > 0 {
+					for key, value := range *vacMap {
+						fmt.Println("key map is", key)
+						msg.Text += key + "\n"
+						rows = append(rows, tgbotapi.InlineKeyboardButton{Text: key, URL: &value})
+					}
+					Rm := tgbotapi.NewInlineKeyboardMarkup(rows)
+					msg.ReplyMarkup = Rm
+				} else {
+					msg.Text = "No vacancies available"
+				}
 			case "number_of_users":
 				msg.Text = "I calculate some stat of users" // available for me only
 				// запрос в базу с пользователями
@@ -93,4 +115,44 @@ func main() {
 		// отправляем
 		bot.Send(msg)
 	}
+}
+
+func getOpenPositions() *map[string]string {
+	url := os.Getenv("OZON_QUERY")
+	// Request the HTML page.
+	res, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+	}
+
+	// Load the HTML document
+	doc, err := goquery.NewDocumentFromReader(res.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var numOfVacancies int
+	doc.Find("div.search").Each(func(i int, s *goquery.Selection) {
+		str := s.Find("div.search__count").Text()
+		if str != "" {
+			numStr := strings.Fields(str)[1]
+			numOfVacancies, _ = strconv.Atoi(numStr)
+		}
+	})
+
+	vacMap := make(map[string]string, numOfVacancies)
+	if numOfVacancies > 0 {
+		doc.Find("div.finder__main").Find("div.results__items").Find("div.wr").Each(func(i int, s *goquery.Selection) {
+			str := s.Find("h6.result__title").Text()
+			strUrl, _ := s.Find("a").Attr("href")
+			if str != "" {
+				vacMap[strings.Trim(str, "\n ")] = os.Getenv("OZON_PREFIX") + strUrl
+			}
+		})
+	}
+	return &vacMap
 }

@@ -70,27 +70,26 @@ func main() {
 		if !update.Message.IsCommand() {
 			msg.Text = reply
 		}
-		test_url := "https://core.telegram.org/bots/api#replykeyboardmarkup"
-		test_string := "hahaha"
+		siteUrl := os.Getenv("OZON_QUERY")
 
 		if update.Message.IsCommand() {
 			// Extract the command from the Message.
 			switch update.Message.Command() {
 			case "list_of_commands":
 				msg.Text = "I am command"
-				k := []tgbotapi.InlineKeyboardButton{{Text: "lalala", CallbackData: &test_string}}
+				k := []tgbotapi.InlineKeyboardButton{{Text: "lalala", CallbackData: &siteUrl}}
 				Rm := tgbotapi.NewInlineKeyboardMarkup(k)
 				msg.ReplyMarkup = Rm
-			case "get_open_positions":
+			case "info":
 				msg.Text = "I will show you recent internship positions"
-			case "link":
-				msg.Text = "I am link"
-				k := []tgbotapi.InlineKeyboardButton{{Text: "tap me", URL: &test_url}, {Text: "haha", URL: &test_url}}
+			case "check_site":
+				msg.Text = "Click the button"
+				k := []tgbotapi.InlineKeyboardButton{{Text: "ozon", URL: &siteUrl}}
 				Rm := tgbotapi.NewInlineKeyboardMarkup(k)
 				msg.ReplyMarkup = Rm
 			case "start":
-				msg.Text = "This bot parses entry level vacancies from Ozon on hh"
-			case "test":
+				msg.Text = "This bot parses entry level vacancies from Ozon"
+			case "get_open_positions":
 				vacMap := getOpenPositions()
 				var rows []tgbotapi.InlineKeyboardButton
 				if len(*vacMap) > 0 {

@@ -45,6 +45,7 @@ func main() {
 
 	// в канал updates прилетают структуры типа Update
 	for update := range updates {
+
 		// универсальный ответ на любое сообщение
 		reply := "I do not process any messages except commands"
 		if update.Message == nil { // ignore any non-Message updates
@@ -68,7 +69,9 @@ func main() {
 		if !update.Message.IsCommand() {
 			msg.Text = reply
 		}
+
 		siteUrl := os.Getenv("OZON_QUERY")
+		checkDemon := internal.Check_updates()
 
 		if update.Message.IsCommand() {
 			// Extract the command from the Message.
@@ -87,6 +90,16 @@ func main() {
 				msg.ReplyMarkup = Rm
 			case "start":
 				msg.Text = "This bot parses entry level vacancies from Ozon"
+				go func() { // вынести в отдельного демона
+					for {
+						select {
+						case newVac := <-checkDemon:
+							notify := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+							notify.Text = newVac
+							bot.Send(notify)
+						}
+					}
+				}()
 			case "get_open_positions":
 				vacMap := internal.GetOpenPositions()
 				var rows []tgbotapi.InlineKeyboardButton
@@ -102,13 +115,11 @@ func main() {
 					msg.Text = "No vacancies available"
 				}
 			case "number_of_users":
-				msg.Text = "I calculate some stat of users" // available for me only
-				// запрос в базу с пользователями
+				msg.Text = "I calculate some stat of users"
 			default:
 				msg.Text = "I don't know that command"
 			}
 		}
-
 		// отправляем
 		bot.Send(msg)
 	}

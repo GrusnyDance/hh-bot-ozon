@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	err := godotenv.Load() // 👈 load .env file
+	err := godotenv.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,6 +40,9 @@ func main() {
 	}
 	defer pool.Close()
 
+	instance := repository.Instance{Db: pool}
+	checkDemon := internal.CheckUpdates(&instance)
+
 	// используя конфиг u создаем канал в который будут прилетать новые сообщения
 	updates := bot.GetUpdatesChan(u)
 
@@ -61,7 +64,6 @@ func main() {
 			}
 		}
 
-		// логируем от кого какое сообщение пришло
 		//log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 		// создаем ответное сообщение
@@ -71,7 +73,6 @@ func main() {
 		}
 
 		siteUrl := os.Getenv("OZON_QUERY")
-		checkDemon := internal.Check_updates()
 
 		if update.Message.IsCommand() {
 			// Extract the command from the Message.
@@ -89,13 +90,16 @@ func main() {
 				Rm := tgbotapi.NewInlineKeyboardMarkup(k)
 				msg.ReplyMarkup = Rm
 			case "start":
-				msg.Text = "This bot parses entry level vacancies from Ozon"
+				msg.Text = "This bot parses entry level vacancies from Ozon, tape /get_open_positions"
 				go func() { // вынести в отдельного демона
 					for {
 						select {
 						case newVac := <-checkDemon:
 							notify := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-							notify.Text = newVac
+							notify.Text = newVac[0]
+							k := []tgbotapi.InlineKeyboardButton{{Text: newVac[0], URL: &newVac[1]}}
+							Rm := tgbotapi.NewInlineKeyboardMarkup(k)
+							notify.ReplyMarkup = Rm
 							bot.Send(notify)
 						}
 					}
@@ -114,8 +118,8 @@ func main() {
 				} else {
 					msg.Text = "No vacancies available"
 				}
-			case "number_of_users":
-				msg.Text = "I calculate some stat of users"
+			//case "number_of_users":
+			//	msg.Text = "I calculate some stat of users"
 			default:
 				msg.Text = "I don't know that command"
 			}

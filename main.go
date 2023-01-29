@@ -41,7 +41,6 @@ func main() {
 	defer pool.Close()
 
 	instance := repository.Instance{Db: pool}
-	checkDemon := internal.CheckUpdates(&instance)
 
 	// используя конфиг u создаем канал в который будут прилетать новые сообщения
 	updates := bot.GetUpdatesChan(u)
@@ -91,17 +90,17 @@ func main() {
 				msg.ReplyMarkup = Rm
 			case "start":
 				msg.Text = "This bot parses entry level vacancies from Ozon, tape /get_open_positions"
-				go func() { // вынести в отдельного демона
+				go func() {
+					newVac := make(chan []string)
+					go internal.CheckUpdates(&instance, newVac)
 					for {
-						select {
-						case newVac := <-checkDemon:
-							notify := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-							notify.Text = newVac[0]
-							k := []tgbotapi.InlineKeyboardButton{{Text: newVac[0], URL: &newVac[1]}}
-							Rm := tgbotapi.NewInlineKeyboardMarkup(k)
-							notify.ReplyMarkup = Rm
-							bot.Send(notify)
-						}
+						newAvailable := <-newVac
+						notify := tgbotapi.NewMessage(update.Message.Chat.ID, "")
+						notify.Text = newAvailable[0]
+						k := []tgbotapi.InlineKeyboardButton{{Text: newAvailable[0], URL: &newAvailable[1]}}
+						Rm := tgbotapi.NewInlineKeyboardMarkup(k)
+						notify.ReplyMarkup = Rm
+						bot.Send(notify)
 					}
 				}()
 			case "get_open_positions":
@@ -118,8 +117,6 @@ func main() {
 				} else {
 					msg.Text = "No vacancies available"
 				}
-			//case "number_of_users":
-			//	msg.Text = "I calculate some stat of users"
 			default:
 				msg.Text = "I don't know that command"
 			}
